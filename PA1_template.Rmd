@@ -1,0 +1,148 @@
+---
+title: "Reproducible Research - Assignment 1"
+author: "Ali Belkairous"
+date: "Tuesday, July 08, 2014"
+output: html_document
+---
+**Data Management and Transformation**
+```{r, setoptions, echo = TRUE}
+setwd("c:/users/abelkair/RR")
+act.df<-read.csv("c:/week4/activity.csv", header=TRUE)
+act.df<-as.data.frame(act.df)
+```
+**Create a dataset with no missing values and with steps grouped by day**
+```{r}
+data <- aggregate(act.df$steps, list(Day=act.df$date), na.rm=TRUE, sum)
+```
+**Histogram of frequency of daily number of steps**
+
+```{r histogram, fig.height=4}
+names(data)[2]<-"Steps"
+max_num <- max(data$Steps)
+brk<-c(data$Day)
+lim<-dim(data)[1]
+data <- data[order(data$Steps),]
+
+hist(data$Steps, col=heat.colors(length(brk)), breaks=lim, 
+       xlim=c(0,max_num), right=F, 
+       main="Frequency of Daily Steps \n - Missing Values Omitted -", 
+       xlab="Steps", cex.axis=0.8)
+```
+
+**Mean and Median of dataset "data" with no missing values (in steps)**
+
+```{r}
+mean <- mean(data$Steps)
+mean
+
+median <- median(data$Steps)
+median
+```
+
+####                    AVERAGE DAILY ACTIVITY PATTERNS
+
+**1. Time series plot of the 5-minute interval (x-axis) and daily step averages**
+
+```{r}
+data <- tapply(act.df$steps, act.df$interval, na.rm = TRUE, mean)
+avgSteps <- as.numeric(data)
+interval <- as.numeric(levels(factor(act.df$interval)))
+
+plot(interval, avgSteps, type = "l", col = "blue", xlab = "5-Minute Interval", 
+        ylab = "Average Number of Steps", main = "Average Daily Activity")
+```
+
+**2. 5-minute interval with maximum number of steps**
+
+```{r}
+data.df <- data.frame(interval, avgSteps)
+data.df[data.df[, 2] == max(avgSteps), ][1]
+```  
+
+####                   INPUTTING MISSING VALUES
+
+**1. Calculate and report the total number of missing values in dataset**
+
+```{r}
+# Number of missing values in the original dataset:
+sum(is.na(act.df))
+```
+
+**2. Devise a strategy for filling missing values**
+
+```{r}
+#          Mean for 5-minute interval is used as filler
+
+allData <- act.df
+for (i in 1:nrow(allData)) {
+       if (is.na(allData[i, 1])) 
+       allData[i, 1] <- data.df[data.df[, 1] == allData[i, 3], ][, 2]
+}
+```
+**3. Create a dataset identical to the original but with filled in NAs**
+
+```{r}
+# New dataset was created that is equal to the original one. 
+# Check for missing values in the new dataset:
+
+sum(is.na(allData))
+```
+
+**4. Histogram of daily steps and calculation of mean and median**
+
+```{r}
+replacedSteps <- aggregate(allData$steps, list(Day=allData$date),
+                       na.rm=TRUE, sum)
+names(replacedSteps)[2]<-"Steps"
+brk<-c(replacedSteps$Day)
+lim<-dim(replacedSteps)[1]
+
+hist(replacedSteps$Steps, col=heat.colors(length(brk)), breaks=lim, 
+       right=F, main = "Frequency of Daily Steps \n - Missing Values Replaced -", 
+       xlab = "Daily Steps",las=1, cex.axis=0.8)
+```
+
+**Mean and Median**
+
+```{r}
+mean <- mean(replacedSteps$Steps, na.rm = TRUE)
+mean
+
+median <- median(replacedSteps$Steps, na.rm = TRUE)
+median
+summary(replacedSteps$Steps, na.rm=TRUE)
+```
+
+####  DIFFERENCE IN ACTIVITY PATTERNS BETWEEN WEEKDAYS AND WEEKENDS
+
+**1. Create a new factor variable with levels: weekday and weekend**
+
+```{r}
+allData$weekday <- c("Weekday")
+allData[weekdays(as.Date(allData[, 2])) %in% c("Saturday", "Sunday"), 
+        ][4] <- c("Weekend")
+```
+
+**2. Plot of 5-minute intervals and steps averaged over weekdays/weekends**
+
+```{r}
+# Loading necessary packages for time series plot
+
+library(ggplot2)
+library(reshape2)
+library(plyr)
+
+a<-allData
+output<-sapply(split(a, a$weekday), function(a) 
+        tapply(a$steps, a$interval, mean))
+
+cleanData <- data.frame(Interval = rep(interval, 2), 
+        avgAllSteps = as.vector(unlist(output)), 
+        DAY = factor(rep(c("Weekdays", "Weekends") )))
+
+ggplot(cleanData, aes(Interval, avgAllSteps)) + 
+        geom_line(aes(colour=DAY)) +
+        ggtitle("Time Series Plot of \n Average Steps per Interval") +
+        facet_grid(. ~ DAY) + stat_smooth(method = "lm") +
+        xlab("5mn Interval") + ylab("Average Steps")
+```
